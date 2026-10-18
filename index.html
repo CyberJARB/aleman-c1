@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Alemán C1">
+<meta name="theme-color" content="#0e6b73">
+<title>Entrenador de alemán C1</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: una columna de trabajo con pestañas; cada modo es una cabina de práctica con temporizador arriba y resultado debajo */
+:root {
+  --bg: #f3f5f6; --surface: #ffffff; --ink: #14212b; --muted: #5b6b76; --line: #d8dfe3;
+  --accent: #0e6b73; --accent-soft: #dcefef; --rec: #c2352b; --ok: #1f7a3a; --ok-soft: #e1f2e6; --bad: #b3261e; --bad-soft: #fbe4e2; --warn: #9a6a00;
+  --display: "Bricolage Grotesque", "Segoe UI", sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #0f171c; --surface: #172229; --ink: #e5ecef; --muted: #93a4ae; --line: #2a3a43;
+  --accent: #4fb8bf; --accent-soft: #163a3d; --rec: #ef6b5f; --ok: #6cc788; --ok-soft: #173524; --bad: #f08a80; --bad-soft: #3d1d1b; --warn: #e2b44a;
+  color-scheme: dark; } }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+.stack { display: grid; gap: 14px; }
+.acct { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; }
+.acct input { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; flex: 1 1 180px; min-width: 0; }
+.acct .msg { font-size: 15px; color: var(--muted); }
+.acct .msg.err { color: var(--bad); }
+.sync { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--ok); margin-right: 6px; }
+details summary { cursor: pointer; color: var(--accent); }
+details pre { white-space: pre-wrap; font: 14px/1.5 var(--body); margin: 6px 0 0; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.55 var(--body); }
+.wrap { max-width: 860px; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(64px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: grid; gap: 20px; }
+h1 { font: 800 clamp(28px, 5vw, 40px)/1.05 var(--display); margin: 0; letter-spacing: -0.01em; }
+h2 { font: 600 22px/1.2 var(--display); margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); margin: 6px 0 0; }
+nav { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--line); }
+nav button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px; font: 600 16px var(--body); color: var(--muted); cursor: pointer; }
+nav button[aria-selected="true"] { color: var(--ink); border-color: var(--accent); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 22px; display: grid; gap: 16px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn { font: 600 16px var(--body); padding: 10px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.btn.rec { background: var(--rec); border-color: var(--rec); color: #fff; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+select, textarea { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+textarea { width: 100%; min-height: 320px; resize: vertical; line-height: 1.6; }
+.label { font: 600 12px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.target { font: 600 clamp(20px, 3.4vw, 26px)/1.45 var(--display); }
+.target .w { padding: 0 2px; border-radius: 4px; }
+.target .w.ok { background: var(--ok-soft); color: var(--ok); }
+.target .w.miss { background: var(--bad-soft); color: var(--bad); text-decoration: underline wavy; }
+.heard { font-size: 18px; min-height: 1.6em; }
+.heard .interim { color: var(--muted); }
+.tip { background: var(--accent-soft); border-radius: 8px; padding: 12px 14px; font-size: 16px; }
+.score { font: 800 44px/1 var(--display); font-variant-numeric: tabular-nums; }
+.score.good { color: var(--ok); } .score.mid { color: var(--warn); } .score.low { color: var(--bad); }
+.timer { font: 500 40px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.phase { display: inline-block; padding: 3px 10px; border-radius: 99px; font: 600 13px var(--body); background: var(--accent-soft); color: var(--accent); }
+.phase.live { background: var(--bad-soft); color: var(--rec); }
+.task { border-left: 4px solid var(--accent); padding: 4px 0 4px 14px; }
+.task ul { margin: 6px 0 0; padding-left: 20px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.stat { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.stat b { display: block; font: 600 24px var(--display); font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 14px; padding: 2px 10px; border-radius: 99px; background: var(--ok-soft); color: var(--ok); }
+.chip.no { background: var(--bad-soft); color: var(--bad); }
+table { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+.note { color: var(--muted); font-size: 14px; }
+.alert { background: var(--bad-soft); color: var(--bad); padding: 12px 14px; border-radius: 8px; }
+audio { width: 100%; max-width: 420px; }
+.transcript { background: var(--bg); border-radius: 8px; padding: 12px 14px; min-height: 80px; white-space: pre-wrap; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Entrenador de alemán C1</h1>
+    <p class="sub">Pronunciación con tu voz, práctica de hablar con temporizador y práctica de escribir. Para hispanohablantes que quieren un alemán C1 real.</p>
+  </header>
+  <section class="acct" id="acct" hidden>
+    <div id="acctOut" class="stack">
+      <div><b>Guarda tu progreso en el iPhone y en el PC</b><div class="msg">Entra con tu cuenta. Sin cuenta, el progreso se queda solo en este dispositivo.</div></div>
+      <form class="row" id="acctForm">
+        <input id="acctEmail" type="email" autocomplete="email" placeholder="tu@email.com" required aria-label="Email">
+        <input id="acctPass" type="password" autocomplete="current-password" placeholder="Contraseña (mín. 8)" minlength="8" required aria-label="Contraseña">
+        <button class="btn primary" type="submit" id="acctLogin">Entrar</button>
+        <button class="btn" type="button" id="acctSignup">Crear cuenta</button>
+      </form>
+      <div class="msg" id="acctMsg"></div>
+    </div>
+    <div id="acctIn" class="row" hidden style="justify-content:space-between">
+      <div><span class="sync"></span><span id="acctWho"></span> <span class="msg" id="acctState"></span></div>
+      <button class="btn" id="acctLogout">Salir</button>
+    </div>
+  </section>
+  <div id="noSupport" class="alert" hidden>Este navegador no reconoce voz. En PC usa Microsoft Edge o Google Chrome; en iPhone, Safari.</div>
+
+  <nav role="tablist">
+    <button role="tab" data-tab="pron" aria-selected="true">Pronunciación</button>
+    <button role="tab" data-tab="oral" aria-selected="false">Hablar</button>
+    <button role="tab" data-tab="escrito" aria-selected="false">Escribir</button>
+    <button role="tab" data-tab="progreso" aria-selected="false">Progreso</button>
+  </nav>
+
+  <!-- PRONUNCIACIÓN -->
+  <section class="panel" id="tab-pron">
+    <div class="row" style="justify-content:space-between">
+      <h2>Lee la frase en voz alta</h2>
+      <select id="pronCat" aria-label="Sonido a practicar"></select>
+    </div>
+    <div class="target" id="pronTarget"></div>
+    <div class="tip" id="pronTip"></div>
+    <div class="row">
+      <button class="btn" id="pronListen">Escuchar modelo</button>
+      <button class="btn rec" id="pronRec">Grabar</button>
+      <button class="btn" id="pronNext">Siguiente frase</button>
+    </div>
+    <div>
+      <div class="label">Lo que entendió el reconocedor</div>
+      <div class="heard" id="pronHeard">—</div>
+    </div>
+    <div class="row" id="pronResult" hidden>
+      <div class="score" id="pronScore"></div>
+      <div style="flex:1;min-width:220px">
+        <div id="pronVerdict"></div>
+        <audio id="pronAudio" controls></audio>
+      </div>
+    </div>
+    <p class="note">Verde = palabra reconocida. Rojo = el reconocedor no la entendió: repítela más despacio, exagerando el sonido. Escucha tu grabación justo después del modelo para oír la diferencia.</p>
+  </section>
+
+  <!-- HABLAR -->
+  <section class="panel" id="tab-oral" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2>Hablar 3–4 minutos sobre un tema de trabajo</h2>
+      <select id="oralType" aria-label="Tipo de tarea">
+        <option value="praes">Presentación (4 min)</option>
+        <option value="disk">Discusión con objeción de tu interlocutor (4 min)</option>
+        <option value="konf">Conflicto con cliente o colega (3 min)</option>
+      </select>
+    </div>
+    <div class="task" id="oralTask"></div>
+    <div class="row">
+      <span class="phase" id="oralPhase">Listo</span>
+      <span class="timer" id="oralTimer">00:00</span>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="oralStart">Empezar (1 min de preparación)</button>
+      <button class="btn rec" id="oralSpeak" hidden>Hablar ya</button>
+      <button class="btn" id="oralStop" hidden>Terminar</button>
+      <button class="btn" id="oralNew">Otra tarea</button>
+    </div>
+    <div>
+      <div class="label">Transcripción en vivo</div>
+      <div class="transcript" id="oralLive"></div>
+    </div>
+    <div id="oralResult" class="stack" hidden>
+      <div class="stats" id="oralStats"></div>
+      <div><div class="label">Redemittel C1 usados</div><div class="chips" id="oralRedemittel"></div></div>
+      <audio id="oralAudio" controls></audio>
+      <div class="row">
+        <button class="btn primary" id="oralCopy">Copiar para corrección con Claude</button>
+        <span class="note" id="oralCopied"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ESCRIBIR -->
+  <section class="panel" id="tab-escrito" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2>Escribir un texto profesional</h2>
+      <select id="wrType" aria-label="Tipo de texto">
+        <option value="mail">Correo formal (30 min, 200–250 palabras)</option>
+        <option value="stell">Stellungnahme (60 min, 250–300 palabras)</option>
+      </select>
+    </div>
+    <div class="task" id="wrTask"></div>
+    <div class="row">
+      <span class="timer" id="wrTimer">30:00</span>
+      <button class="btn primary" id="wrStart">Empezar</button>
+      <button class="btn" id="wrNew">Otra tarea</button>
+    </div>
+    <textarea id="wrText" placeholder="Escribe aquí tu texto en alemán…" spellcheck="false"></textarea>
+    <div class="stats" id="wrStats"></div>
+    <div><div class="label">Redemittel C1 usados</div><div class="chips" id="wrRedemittel"></div></div>
+    <div class="row">
+      <button class="btn" id="wrSave">Guardar texto</button>
+      <button class="btn primary" id="wrCopy">Copiar para corrección con Claude</button>
+      <span class="note" id="wrCopied"></span>
+    </div>
+    <p class="note">El corrector ortográfico está desactivado a propósito, para que veas tus errores reales.</p>
+  </section>
+
+  <!-- PROGRESO -->
+  <section class="panel" id="tab-progreso" hidden>
+    <h2>Tu progreso</h2>
+    <div class="stats" id="progStats"></div>
+    <div><div class="label">Pronunciación por sonido (media)</div><div style="overflow-x:auto"><table id="progCats"></table></div></div>
+    <div><div class="label">Últimos intentos</div><div style="overflow-x:auto"><table id="progLog"></table></div></div>
+    <div class="row"><button class="btn" id="progReset">Borrar historial</button><span class="note" id="progResetMsg"></span></div>
+  </section>
+
+  <p class="note">El reconocimiento de voz de Edge/Chrome envía el audio a los servidores de Microsoft/Google para transcribirlo. Las grabaciones de audio se quedan en este dispositivo. Si entras con tu cuenta, tus notas y textos se guardan en tu cuenta (servidor en Fráncfort) y solo tú puedes verlos. La nota mide si un sistema alemán te entiende, no el acento exacto.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+// ---------- Datos ----------
+const CATS = {
+  umlaut: { name: "ü, ö, ä", tip: "ü = di «i» con los labios redondeados como para «u». ö = di «e» con labios de «o». ä suena como la «e» abierta española.",
+    s: ["Die Prüfung findet nächste Woche in München statt.", "Könnten Sie mir bitte die Unterlagen schicken?", "Wir müssen die Übersicht über alle Gebühren überprüfen.", "Ich möchte meine Fähigkeiten im Bereich Datenschutz erhöhen.", "Die Lösung wurde von unserem Büro schon geprüft."] },
+  ch: { name: "ch (ich / ach)", tip: "Tras e, i, ä, ö, ü, consonante: «ich» suave, como un gato que bufa. Tras a, o, u: «ach» raspado al fondo, como la «j» española pero más suave.",
+    s: ["Ich brauche noch eine Nachricht vom Fachbereich.", "Natürlich kümmere ich mich gleich darum.", "Die Sicherheitslücke wurde durch einen Mitarbeiter entdeckt.", "Leider macht die Technik heute Schwierigkeiten.", "Wir besprechen das nächste Woche persönlich."] },
+  r: { name: "r alemana", tip: "La r es uvular, al fondo de la garganta, nunca vibrante como «perro». Al final de sílaba (-er) se convierte casi en una «a»: Lehrer ≈ «Lehra».",
+    s: ["Der Bericht über die Rechnerarchitektur ist fertig.", "Wir fahren morgen früh zur Fortbildung nach Bremen.", "Ihre Rückmeldung war für unser Team sehr hilfreich.", "Die Mitarbeiter warten auf eine klare Regelung.", "Das Problem wurde rechtzeitig erkannt."] },
+  zst: { name: "z, st, sp", tip: "z = «ts» siempre. st y sp al inicio de palabra suenan «scht» y «schp». La s antes de vocal es sonora, como un zumbido.",
+    s: ["Zurzeit arbeiten zwanzig Kollegen an der Umsetzung.", "Die Stellungnahme des Vorstands steht noch aus.", "Sprechen Sie bitte mit der zuständigen Stelle.", "Zusätzlich benötigen wir eine schriftliche Zustimmung.", "Sie sollten die Sitzung pünktlich beginnen."] },
+  vokal: { name: "h y vocales largas", tip: "La h inicial se aspira (no es muda como en español). Vocal + h o vocal doble = vocal larga: «Wohl», «Meer». Vocal + doble consonante = corta: «Bett».",
+    s: ["Die Mitarbeiter haben ihre Ziele ehrlich bewertet.", "Das Wohl der Kunden hat für uns höchste Priorität.", "Wir sehen uns hoffentlich im Herbst wieder.", "Ihr Vorschlag hat mir sehr gut gefallen.", "Die Kollegen sollen die Fehler sofort melden."] },
+  komp: { name: "palabras compuestas", tip: "El acento va en la primera parte de la compuesta: DATENschutzgrundverordnung. Divide mentalmente en bloques y no hagas pausa entre ellos.",
+    s: ["Die Datenschutzgrundverordnung gilt für alle Unternehmen.", "Die Zugriffsberechtigungen müssen regelmäßig überprüft werden.", "Das Mitarbeitergespräch wurde auf Donnerstag verschoben.", "Wir brauchen eine Kostenübersicht für die Geschäftsleitung.", "Die Arbeitszeiterfassung ist seit kurzem Pflicht."] },
+  redem: { name: "Redemittel C1", tip: "Frases de reunión y de informe: dilas de corrido, con la entonación bajando al final. Si te salen fluidas, suenas a C1.",
+    s: ["Meines Erachtens sollten wir diesen Punkt vertagen.", "Dem ist entgegenzuhalten, dass die Kosten erheblich gestiegen sind.", "Zusammenfassend lässt sich festhalten, dass die Maßnahmen wirken.", "Es wäre zu überlegen, ob wir externe Berater hinzuziehen.", "Ich verstehe Ihren Ärger, deshalb schlage ich eine Lösung vor."] }
+};
+
+const ORAL = {
+  praes: { prep: 60, speak: 240, items: [
+    { t: "Homeoffice in Ihrer Branche", p: ["Erfahrungen in Ihrem Beruf", "Vor- und Nachteile für Firma und Mitarbeitende", "Ihre Empfehlung"] },
+    { t: "Künstliche Intelligenz am Arbeitsplatz", p: ["Wo wird KI schon eingesetzt?", "Chancen und Risiken", "Wie sollten Firmen vorgehen?"] },
+    { t: "Weiterbildung: Wer soll sie bezahlen?", p: ["Situation in Deutschland und in Ihrem Herkunftsland", "Argumente für Arbeitgeber und Staat", "Ihre Meinung"] },
+    { t: "Datenschutz im Unternehmen: Pflicht oder Chance?", p: ["Was verlangt die DSGVO?", "Kosten und Nutzen", "Ein Beispiel aus Ihrer Erfahrung"] },
+    { t: "Die Vier-Tage-Woche", p: ["Erfahrungen anderer Länder", "Folgen für Produktivität und Gesundheit", "Ihr Fazit"] },
+    { t: "Fachkräftemangel in Deutschland", p: ["Ursachen", "Rolle der Zuwanderung", "Lösungsvorschläge"] } ] },
+  disk: { prep: 60, speak: 240, objectionAt: 100, items: [
+    { t: "Ihre Firma will alle Meetings nur noch online durchführen. Nehmen Sie Stellung.", o: "Das sehe ich anders. Persönliche Treffen sind für das Vertrauen im Team unverzichtbar. Was sagen Sie dazu?" },
+    { t: "Die Geschäftsleitung möchte private Handys am Arbeitsplatz verbieten. Wie stehen Sie dazu?", o: "Aber ohne Verbot sinkt die Konzentration, und es gibt Sicherheitsrisiken. Wie wollen Sie das lösen?" },
+    { t: "Ihr Team soll eine neue Software einführen, obwohl die alte gut funktioniert. Argumentieren Sie.", o: "Eine Umstellung kostet Zeit und Geld, und viele Kollegen sind dagegen. Warum sollten wir das riskieren?" },
+    { t: "Die Firma überlegt, Gehälter offen für alle sichtbar zu machen. Ihre Position?", o: "Transparenz führt doch nur zu Neid und Konflikten im Team. Sehen Sie das nicht so?" } ] },
+  konf: { prep: 60, speak: 180, items: [
+    { t: "Ein Kunde ruft verärgert an: Durch eine Datenpanne wurden seine Daten veröffentlicht. Beruhigen Sie ihn, erklären Sie die nächsten Schritte und bieten Sie eine Lösung an." },
+    { t: "Ein Kollege hat zum dritten Mal eine Frist verpasst, und Ihr Projekt verzögert sich. Sprechen Sie ihn darauf an." },
+    { t: "Ihre Vorgesetzte lehnt Ihren Urlaubsantrag ab, obwohl Sie ihn früh gestellt haben. Verhandeln Sie eine Lösung." },
+    { t: "Ein Lieferant hat falsche Ware geschickt, und Ihr Kunde wartet. Rufen Sie den Lieferanten an und fordern Sie eine schnelle Lösung." } ] }
+};
+
+const WRITTEN = {
+  mail: { min: 30, range: [200, 250], items: [
+    "Sie haben vor zwei Wochen einen Laptop für Ihr Team bestellt. Die Lieferung ist unvollständig und ein Gerät defekt. Schreiben Sie eine Beschwerde an den Händler: Sachverhalt, Folgen für Ihre Arbeit, Ihre Forderung mit Frist.",
+    "Sie möchten eine Weiterbildung im Bereich Cybersicherheit besuchen. Schreiben Sie Ihrer Vorgesetzten: Inhalt der Weiterbildung, Nutzen für die Firma, Kosten und Zeitraum, Bitte um Freistellung.",
+    "Ein Kunde hat sich über lange Wartezeiten beschwert. Antworten Sie ihm: Entschuldigung, Gründe, Maßnahmen, ein Angebot zur Wiedergutmachung.",
+    "Sie organisieren ein Team-Meeting mit externen Partnern. Schreiben Sie eine Einladung: Anlass, Tagesordnung, Ort und Zeit, Bitte um Rückmeldung." ] },
+  stell: { min: 60, range: [250, 300], items: [
+    "Immer mehr Firmen setzen Künstliche Intelligenz bei der Auswahl von Bewerbern ein. Nehmen Sie Stellung: Vorteile, Nachteile, Ihre Meinung, ein Vorschlag.",
+    "Sollte Homeoffice ein gesetzliches Recht für alle Büroangestellten werden? Erörtern Sie die Frage.",
+    "Viele Unternehmen klagen über Fachkräftemangel, stellen aber ungern Bewerber aus dem Ausland ein. Nehmen Sie Stellung.",
+    "Die Vier-Tage-Woche bei vollem Lohn: Zukunftsmodell oder Risiko für die Wirtschaft? Erörtern Sie die Frage." ] }
+};
+
+const REDEMITTEL = ["meines erachtens", "meiner meinung nach", "ich vertrete die auffassung", "darüber hinaus", "hinzu kommt", "demgegenüber", "hingegen", "allerdings", "zurückzuführen", "das liegt daran", "folglich", "infolgedessen", "zur folge", "veranschaulichen", "zum beispiel", "zwar", "dennoch", "entgegenzuhalten", "anderer meinung", "es wäre zu überlegen", "wie wäre es", "einig", "zusammenfassend", "abschließend", "im folgenden", "einerseits", "andererseits", "sowohl", "weder", "je mehr", "aufgrund", "hinsichtlich", "bezüglich", "bezugnehmend", "ich wende mich an sie", "ich bitte sie", "für rückfragen", "ich verstehe ihren ärger", "ich schlage vor", "lassen sie mich", "es lässt sich", "nicht zuletzt", "vor allem", "insbesondere"];
+
+// ---------- Utilidades ----------
+const $ = id => document.getElementById(id);
+// Historial: caché local siempre; si hay sesión, cada intento se sube a Supabase (s = 1 cuando ya está subido)
+const SB_URL = "https://vifktllosleubilvhdnq.supabase.co", SB_KEY = "sb_publishable_twaASsC_sH5k6pE4vihuNQ_HO_vY6eu";
+const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+let cloudUser = null;
+const toRow = e => ({ created_at: e.ts, type: e.type, cat: e.cat || null, score: e.score ?? null, rm: e.rm ?? null, what: e.what || null, content: e.content || null });
+const fromRow = r => ({ ts: r.created_at, d: fmtDate(r.created_at), type: r.type, cat: r.cat, score: r.score, rm: r.rm, what: r.what, content: r.content, s: 1 });
+const store = {
+  get() { try { return JSON.parse(localStorage.getItem("c1log") || "[]"); } catch { return []; } },
+  put(l) { try { localStorage.setItem("c1log", JSON.stringify(l.slice(-500))); } catch {} },
+  add(e) {
+    e.ts = new Date().toISOString(); e.d = fmtDate(e.ts); e.s = 0;
+    const l = store.get(); l.push(e); store.put(l);
+    if (cloudUser) syncUp();
+  },
+  clear() { try { localStorage.removeItem("c1log"); } catch {} }
+};
+async function syncUp() {
+  const l = store.get(), pending = l.filter(e => !e.s);
+  if (!pending.length || !cloudUser) return;
+  setState("Guardando…");
+  pending.forEach(e => { if (!e.ts) e.ts = new Date().toISOString(); });
+  const { error } = await sb.from("attempts").insert(pending.map(toRow));
+  if (error) { setState("Sin conexión: se guardará más tarde", true); return; }
+  pending.forEach(e => e.s = 1); store.put(l); setState("Sincronizado");
+}
+async function syncDown() {
+  const { data, error } = await sb.from("attempts").select("*").order("created_at", { ascending: false }).limit(500);
+  if (error) { setState("No se pudo cargar el progreso", true); return; }
+  store.put(data.reverse().map(fromRow)); setState("Sincronizado");
+  if (!$("tab-progreso").hidden) renderProgress();
+}
+function setState(t, bad) { const el = $("acctState"); if (el) { el.textContent = "· " + t; el.style.color = bad ? "var(--bad)" : ""; } }
+const norm = s => s.toLowerCase().replace(/ß/g, "ss").replace(/[^a-zäöü0-9\s-]/g, " ").replace(/-/g, " ").split(/\s+/).filter(Boolean);
+const fmt = s => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmtDate = iso => new Date(iso).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) $("noSupport").hidden = false;
+
+function speak(text, rate = 0.92) {
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "de-DE"; u.rate = rate;
+  const v = speechSynthesis.getVoices().find(v => v.lang.startsWith("de") && /natural|online/i.test(v.name)) || speechSynthesis.getVoices().find(v => v.lang.startsWith("de"));
+  if (v) u.voice = v;
+  speechSynthesis.speak(u);
+  return u;
+}
+speechSynthesis.onvoiceschanged = () => {};
+
+// Reconocimiento + grabación juntos. continuous=true reinicia solo si el navegador corta por silencio.
+// En algunos iPhone Safari no deja grabar y reconocer a la vez: si falla, se recuerda y solo se reconoce.
+let noRecord = false;
+try { noRecord = localStorage.getItem("c1norec") === "1"; } catch {}
+function startSession({ continuous, onText, onDone }) {
+  let finalText = "", active = true, done = false, rec, media, stream, chunks = [];
+  const deliver = audio => { if (!done) { done = true; onDone(finalText.trim(), audio); } };
+  const finish = () => {
+    if (media && media.state !== "inactive") media.stop(); else deliver(null);
+  };
+  const dropRecorder = () => {
+    if (media) { media.onstop = null; try { media.stop(); } catch {} }
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    media = null; noRecord = true;
+    try { localStorage.setItem("c1norec", "1"); } catch {}
+  };
+  if (!noRecord && navigator.mediaDevices && window.MediaRecorder) {
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(s => {
+      stream = s; media = new MediaRecorder(s);
+      media.ondataavailable = e => chunks.push(e.data);
+      media.onstop = () => { s.getTracks().forEach(t => t.stop()); deliver(chunks.length ? URL.createObjectURL(new Blob(chunks, { type: media.mimeType })) : null); };
+      media.start();
+    }).catch(() => { media = null; });
+  }
+  if (SR) {
+    const begin = () => {
+      rec = new SR(); rec.lang = "de-DE"; rec.continuous = continuous; rec.interimResults = true;
+      rec.onresult = e => {
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) finalText += e.results[i][0].transcript + " ";
+          else interim += e.results[i][0].transcript;
+        }
+        onText(finalText, interim);
+      };
+      rec.onend = () => { if (active && continuous) { try { begin(); } catch {} } else if (active) { active = false; finish(); } };
+      rec.onerror = e => {
+        if (e.error === "audio-capture" && media) { dropRecorder(); setTimeout(() => { if (active) try { begin(); } catch {} }, 300); return; }
+        if (e.error === "not-allowed" || e.error === "service-not-allowed") { active = false; $("noSupport").hidden = false; $("noSupport").textContent = "El navegador bloqueó el micrófono o el dictado. En PC: permite el micrófono en la barra de direcciones. En iPhone: Ajustes > Safari > Micrófono = Permitir, y Ajustes > General > Teclado > Activar dictado."; } };
+      rec.start();
+    };
+    begin();
+  }
+  return { stop() { active = false; try { rec && rec.stop(); } catch {} setTimeout(finish, 400); } };
+}
+
+// ---------- Pestañas ----------
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll(".panel").forEach(p => p.hidden = p.id !== "tab-" + b.dataset.tab);
+  if (b.dataset.tab === "progreso") renderProgress();
+});
+
+// ---------- Pronunciación ----------
+const pronCat = $("pronCat");
+pronCat.innerHTML = Object.entries(CATS).map(([k, c]) => `<option value="${k}">${c.name}</option>`).join("");
+let pronIdx = 0, pronSession = null;
+function pronLoad() {
+  const c = CATS[pronCat.value];
+  const sentence = c.s[pronIdx % c.s.length];
+  $("pronTarget").innerHTML = sentence.split(/\s+/).map(w => `<span class="w">${esc(w)}</span>`).join(" ");
+  $("pronTarget").dataset.text = sentence;
+  $("pronTip").textContent = c.tip;
+  $("pronHeard").textContent = "—";
+  $("pronResult").hidden = true;
+}
+pronCat.onchange = () => { pronIdx = 0; pronLoad(); };
+$("pronNext").onclick = () => { pronIdx++; pronLoad(); };
+$("pronListen").onclick = () => speak($("pronTarget").dataset.text, 0.85);
+$("pronRec").onclick = () => {
+  if (pronSession) { pronSession.stop(); return; }
+  $("pronRec").textContent = "Detener"; $("pronHeard").innerHTML = '<span class="interim">Escuchando…</span>';
+  pronSession = startSession({
+    continuous: false,
+    onText: (f, i) => { $("pronHeard").innerHTML = esc(f) + `<span class="interim">${esc(i)}</span>`; },
+    onDone: (text, audio) => { pronSession = null; $("pronRec").textContent = "Grabar"; pronScore(text, audio); }
+  });
+};
+function pronScore(heard, audio) {
+  const target = $("pronTarget").dataset.text;
+  const t = norm(target), h = norm(heard);
+  // LCS para alinear palabras dichas con las de la frase
+  const dp = Array.from({ length: t.length + 1 }, () => Array(h.length + 1).fill(0));
+  for (let i = t.length - 1; i >= 0; i--) for (let j = h.length - 1; j >= 0; j--)
+    dp[i][j] = t[i] === h[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const ok = new Set(); let i = 0, j = 0;
+  while (i < t.length && j < h.length) { if (t[i] === h[j]) { ok.add(i); i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++; }
+  // El texto original puede tener guiones que norm separa: mapeamos por palabra visible
+  const spans = [...$("pronTarget").querySelectorAll(".w")];
+  let k = 0, missed = [];
+  spans.forEach(s => {
+    const parts = norm(s.textContent);
+    const good = parts.every((_, n) => ok.has(k + n));
+    s.classList.add(good ? "ok" : "miss");
+    if (!good) missed.push(s.textContent.replace(/[.,?!]/g, ""));
+    k += parts.length;
+  });
+  const score = t.length ? Math.round(ok.size / t.length * 100) : 0;
+  const el = $("pronScore");
+  el.textContent = score + "%";
+  el.className = "score " + (score >= 90 ? "good" : score >= 70 ? "mid" : "low");
+  $("pronVerdict").innerHTML = !heard ? "No se oyó nada. Comprueba el micrófono y habla justo después de pulsar Grabar." :
+    score >= 90 ? "Muy bien: un alemán te entendería sin esfuerzo." :
+    score >= 70 ? `Casi. Repite: <b>${esc(missed.join(", "))}</b>` :
+    `Hay que trabajarla. Escucha el modelo y repite despacio: <b>${esc(missed.join(", "))}</b>`;
+  if (audio) { $("pronAudio").src = audio; $("pronAudio").hidden = false; } else $("pronAudio").hidden = true;
+  $("pronResult").hidden = false;
+  if (heard) store.add({ type: "pron", cat: pronCat.value, score, what: target });
+}
+pronLoad();
+
+// ---------- Hablar ----------
+let oralItem, oralTimerId, oralSession, oralSecs, oralSpoken = 0, oralFinal = "", oralObjDone = false;
+function oralLoad() {
+  const type = $("oralType").value; oralItem = pick(ORAL[type].items);
+  const p = oralItem.p ? `<ul>${oralItem.p.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  const extra = type === "disk" ? '<p class="note">Defiende tu postura. Hacia el minuto 1:40 tu interlocutor te interrumpe con una objeción: respóndela.</p>' : "";
+  $("oralTask").innerHTML = `<b>${esc(oralItem.t)}</b>${p}${extra}`;
+  oralReset();
+}
+function oralReset() {
+  clearInterval(oralTimerId); if (oralSession) oralSession.stop(); oralSession = null;
+  $("oralPhase").textContent = "Listo"; $("oralPhase").className = "phase";
+  $("oralTimer").textContent = fmt(ORAL[$("oralType").value].speak);
+  $("oralStart").hidden = false; $("oralSpeak").hidden = true; $("oralStop").hidden = true;
+  $("oralLive").textContent = ""; $("oralResult").hidden = true;
+}
+$("oralType").onchange = oralLoad; $("oralNew").onclick = oralLoad;
+$("oralStart").onclick = () => {
+  const cfg = ORAL[$("oralType").value]; oralSecs = cfg.prep;
+  $("oralStart").hidden = true; $("oralSpeak").hidden = false;
+  $("oralPhase").textContent = "Preparación: toma notas"; $("oralTimer").textContent = fmt(oralSecs);
+  oralTimerId = setInterval(() => { oralSecs--; $("oralTimer").textContent = fmt(Math.max(oralSecs, 0)); if (oralSecs <= 0) oralBeginSpeak(); }, 1000);
+};
+$("oralSpeak").onclick = () => oralBeginSpeak();
+function oralBeginSpeak() {
+  clearInterval(oralTimerId);
+  const type = $("oralType").value, cfg = ORAL[type];
+  oralSecs = cfg.speak; oralSpoken = 0; oralFinal = ""; oralObjDone = false;
+  $("oralSpeak").hidden = true; $("oralStop").hidden = false;
+  $("oralPhase").textContent = "Grabando"; $("oralPhase").className = "phase live";
+  oralSession = startSession({
+    continuous: true,
+    onText: (f, i) => { oralFinal = f; $("oralLive").innerHTML = esc(f) + `<span class="note">${esc(i)}</span>`; },
+    onDone: (text, audio) => oralFinish(text || oralFinal, audio)
+  });
+  oralTimerId = setInterval(() => {
+    oralSecs--; oralSpoken++;
+    $("oralTimer").textContent = fmt(Math.max(oralSecs, 0));
+    if (type === "disk" && !oralObjDone && oralSpoken >= cfg.objectionAt) {
+      oralObjDone = true; speak(oralItem.o, 1);
+      $("oralLive").insertAdjacentHTML("beforeend", `<div class="tip" style="margin:8px 0">Interlocutor: ${esc(oralItem.o)}</div>`);
+      oralFinal += "\n[Interlocutor: " + oralItem.o + "]\n";
+    }
+    if (oralSecs <= 0) $("oralStop").click();
+  }, 1000);
+}
+$("oralStop").onclick = () => { clearInterval(oralTimerId); $("oralStop").hidden = true; $("oralPhase").textContent = "Analizando…"; if (oralSession) oralSession.stop(); };
+function analyze(text) {
+  const words = norm(text.replace(/\[Interlocutor:[^\]]*\]/g, ""));
+  const low = " " + words.join(" ") + " ";
+  const used = REDEMITTEL.filter(r => low.includes(" " + r.replace(/ß/g, "ss")));
+  const und = words.filter(w => w === "und").length;
+  const ich = words.filter(w => w === "ich").length;
+  return { words: words.length, used, und, ich };
+}
+function oralFinish(text, audio) {
+  oralSession = null;
+  const a = analyze(text), mins = Math.max(oralSpoken, 1) / 60, wpm = Math.round(a.words / mins);
+  $("oralPhase").textContent = "Terminado"; $("oralPhase").className = "phase";
+  $("oralStats").innerHTML = [
+    [fmt(oralSpoken), "tiempo hablado"],
+    [a.words, "palabras"],
+    [wpm, "palabras/min (C1: 100–150)"],
+    [a.used.length, "Redemittel (meta: 5+)"],
+    [a.und, "veces «und» (menos es mejor)"]
+  ].map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+  $("oralRedemittel").innerHTML = a.used.length ? a.used.map(r => `<span class="chip">${esc(r)}</span>`).join("") : '<span class="chip no">ninguno: repasa la tabla del curso</span>';
+  if (audio) { $("oralAudio").src = audio; $("oralAudio").hidden = false; } else $("oralAudio").hidden = true;
+  $("oralResult").hidden = false;
+  $("oralCopy").dataset.text = text;
+  store.add({ type: "oral", score: wpm, what: oralItem.t.slice(0, 80), rm: a.used.length, content: text.slice(0, 20000) });
+}
+$("oralCopy").onclick = () => {
+  const prompt = `Eres mi profesor de alemán, nativo, y me ayudas a llegar a un C1 real para el trabajo (no me preparo para un examen). Soy hispanohablante nativo. Abajo está la transcripción automática de lo que dije (puede tener errores del reconocedor; si una palabra no tiene sentido, indica qué palabra probablemente pronuncié mal).
+
+Tarea: ${oralItem.t}${oralItem.p ? " (" + oralItem.p.join("; ") + ")" : ""}
+Duración: ${fmt(oralSpoken)}
+
+Transcripción:
+${$("oralCopy").dataset.text}
+
+Por favor:
+1. Mi nivel aproximado (B2, B2+, C1) en fluidez, vocabulario y gramática, en una línea cada uno.
+2. Lista de errores: frase original → versión corregida → explicación breve en español (marca los típicos de hispanohablantes).
+3. Cómo lo diría un alemán nativo culto en una reunión de trabajo, con la misma idea.
+4. Las 3 cosas más importantes que debo practicar esta semana.`;
+  copyText(prompt, "oralCopied");
+};
+
+// ---------- Escribir ----------
+let wrItem, wrTimerId, wrSecs, wrStarted = 0;
+function wrLoad() {
+  const cfg = WRITTEN[$("wrType").value]; wrItem = pick(cfg.items);
+  $("wrTask").innerHTML = `<b>${esc(wrItem)}</b><p class="note">Extensión: ${cfg.range[0]}–${cfg.range[1]} palabras · Tiempo: ${cfg.min} min</p>`;
+  clearInterval(wrTimerId); wrSecs = cfg.min * 60; $("wrTimer").textContent = fmt(wrSecs); $("wrStart").disabled = false;
+  wrStats();
+}
+$("wrType").onchange = wrLoad; $("wrNew").onclick = wrLoad;
+$("wrStart").onclick = () => {
+  $("wrStart").disabled = true; wrStarted = Date.now(); $("wrText").focus();
+  wrTimerId = setInterval(() => {
+    wrSecs--; $("wrTimer").textContent = fmt(Math.max(wrSecs, 0));
+    if (wrSecs <= 0) { clearInterval(wrTimerId); $("wrTimer").textContent = "Tiempo"; wrSaveNow(); }
+  }, 1000);
+};
+function wrStats() {
+  const cfg = WRITTEN[$("wrType").value], a = analyze($("wrText").value);
+  const inRange = a.words >= cfg.range[0] && a.words <= cfg.range[1];
+  $("wrStats").innerHTML = [
+    [a.words, `palabras (${cfg.range[0]}–${cfg.range[1]})${inRange ? " ✓" : ""}`],
+    [a.used.length, "Redemittel (meta: 6+)"],
+    [a.und, "veces «und»"],
+    [a.ich, "veces «ich» (varía el inicio)"]
+  ].map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+  $("wrRedemittel").innerHTML = a.used.length ? a.used.map(r => `<span class="chip">${esc(r)}</span>`).join("") : '<span class="chip no">todavía ninguno</span>';
+}
+$("wrText").oninput = wrStats;
+let wrSavedText = "";
+function wrSaveNow() {
+  const text = $("wrText").value.trim();
+  if (!text) { $("wrCopied").textContent = "Escribe algo antes de guardar."; return; }
+  if (text === wrSavedText) { $("wrCopied").textContent = "Este texto ya está guardado."; return; }
+  const a = analyze(text);
+  store.add({ type: "escrito", score: a.words, rm: a.used.length, what: wrItem.slice(0, 80), content: text.slice(0, 20000) });
+  wrSavedText = text; $("wrCopied").textContent = "Texto guardado en tu progreso.";
+}
+$("wrSave").onclick = wrSaveNow;
+$("wrCopy").onclick = () => {
+  const cfg = WRITTEN[$("wrType").value];
+  const used = wrStarted ? fmt(Math.round((Date.now() - wrStarted) / 1000)) : "sin cronometrar";
+  const prompt = `Eres mi profesor de alemán, nativo, y me ayudas a llegar a un C1 real para el trabajo (no me preparo para un examen). Soy hispanohablante nativo. Corrige mi texto.
+
+Tarea: ${wrItem}
+Extensión pedida: ${cfg.range[0]}–${cfg.range[1]} palabras · Tiempo usado: ${used}
+
+Mi texto:
+${$("wrText").value}
+
+Por favor:
+1. Mi nivel aproximado (B2, B2+, C1) en estructura, vocabulario y registro, y gramática, en una línea cada uno.
+2. Lista de errores: frase original → versión corregida → explicación breve en español (marca los errores típicos de hispanohablantes).
+3. Versión corregida completa, como la escribiría un profesional alemán, con estilo nominal donde sea natural.
+4. 5 Redemittel o estructuras C1 que debería haber usado aquí.`;
+  copyText(prompt, "wrCopied");
+};
+function copyText(text, msgId) {
+  navigator.clipboard.writeText(text).then(() => { $(msgId).textContent = "Copiado. Pégalo en una conversación con Claude."; },
+    () => { $(msgId).textContent = "No se pudo copiar automáticamente."; });
+}
+wrLoad(); oralLoad();
+
+// ---------- Progreso ----------
+function renderProgress() {
+  const log = store.get();
+  const pron = log.filter(e => e.type === "pron"), oral = log.filter(e => e.type === "oral"), wr = log.filter(e => e.type === "escrito");
+  const avg = a => a.length ? Math.round(a.reduce((s, e) => s + e.score, 0) / a.length) : "—";
+  const last20 = pron.slice(-20);
+  $("progStats").innerHTML = [
+    [pron.length, "frases grabadas"], [avg(last20) + (last20.length ? "%" : ""), "pronunciación (últimas 20)"],
+    [oral.length, "prácticas de hablar"], [wr.length, "textos escritos"]
+  ].map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+  $("progCats").innerHTML = "<tr><th>Sonido</th><th>Intentos</th><th>Media</th><th>Últimos 5</th></tr>" +
+    Object.entries(CATS).map(([k, c]) => { const l = pron.filter(e => e.cat === k); return `<tr><td>${c.name}</td><td>${l.length}</td><td>${avg(l)}${l.length ? "%" : ""}</td><td>${avg(l.slice(-5))}${l.length ? "%" : ""}</td></tr>`; }).join("");
+  $("progLog").innerHTML = "<tr><th>Fecha</th><th>Tipo</th><th>Resultado</th><th>Tarea</th></tr>" +
+    (log.slice(-15).reverse().map(e => `<tr><td>${e.d}</td><td>${{ pron: "Pronunciación", oral: "Hablar", escrito: "Escribir" }[e.type] || e.type}</td><td>${e.type === "pron" ? e.score + "%" : e.type === "oral" ? e.score + " pal/min · " + (e.rm || 0) + " Redemittel" : e.score + " palabras · " + (e.rm || 0) + " Redemittel"}</td><td>${e.content ? `<details><summary>${esc(e.what || "Ver")}</summary><pre>${esc(e.content)}</pre></details>` : esc(e.what || "")}</td></tr>`).join("") || '<tr><td colspan="4" class="note">Aún no hay intentos. Empieza por la pestaña Pronunciación.</td></tr>');
+}
+let resetArmed = false;
+$("progReset").onclick = async () => {
+  if (!resetArmed) { resetArmed = true; $("progResetMsg").textContent = "Pulsa otra vez para confirmar."; setTimeout(() => { resetArmed = false; $("progResetMsg").textContent = ""; }, 4000); return; }
+  resetArmed = false;
+  if (cloudUser) {
+    const { error } = await sb.from("attempts").delete().eq("user_id", cloudUser.id);
+    if (error) { $("progResetMsg").textContent = "No se pudo borrar en tu cuenta. Revisa la conexión."; return; }
+  }
+  store.clear(); $("progResetMsg").textContent = "Historial borrado."; renderProgress();
+};
+
+// ---------- Cuenta ----------
+if (sb) {
+  $("acct").hidden = false;
+  const msg = (t, bad) => { $("acctMsg").textContent = t; $("acctMsg").className = "msg" + (bad ? " err" : ""); };
+  const creds = () => ({ email: $("acctEmail").value.trim(), password: $("acctPass").value });
+  const showUser = u => {
+    const changed = (cloudUser && cloudUser.id) !== (u && u.id);
+    cloudUser = u;
+    $("acctOut").hidden = !!u; $("acctIn").hidden = !u;
+    if (u && changed) { $("acctWho").textContent = u.email; setState("Cargando…"); syncUp().then(syncDown); }
+  };
+  $("acctForm").onsubmit = async ev => {
+    ev.preventDefault(); msg("Entrando…");
+    const { error } = await sb.auth.signInWithPassword(creds());
+    if (error) msg(/confirm/i.test(error.message) ? "Primero confirma tu email: abre el enlace que te enviamos." : "Email o contraseña incorrectos.", true); else msg("");
+  };
+  $("acctSignup").onclick = async () => {
+    if (!$("acctForm").reportValidity()) return;
+    msg("Creando cuenta…");
+    const { data, error } = await sb.auth.signUp({ ...creds(), options: { emailRedirectTo: location.origin + location.pathname } });
+    if (error) msg(/not allowed|disabled/i.test(error.message) ? "El registro de cuentas nuevas está cerrado." : "No se pudo crear la cuenta: " + error.message, true);
+    else if (!data.session) msg("Cuenta creada. Abre el correo de confirmación que te enviamos y vuelve aquí para entrar.");
+  };
+  $("acctLogout").onclick = async () => { await sb.auth.signOut(); store.clear(); renderProgress(); };
+  sb.auth.onAuthStateChange((_ev, session) => setTimeout(() => showUser(session ? session.user : null), 0));
+}
+</script>
+</body>
+</html>
